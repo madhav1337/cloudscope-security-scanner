@@ -22,27 +22,34 @@ function updateButton() {
 
 async function runScan(event) {
   event.preventDefault();
+  const target = targetInput.value.trim();
   setError("");
   setLoading(true);
   statePanel.hidden = false;
-  statePanel.classList.add("loading-state");
-  statePanel.innerHTML = `<span class="empty-shield" aria-hidden="true">⌁</span><h2>Inspecting ${escapeHtml(targetInput.value.trim())}</h2><p>Resolving public addresses and checking the bounded web endpoint set.</p>`;
+  statePanel.className = "empty-state loading-state";
+  statePanel.innerHTML = `
+    <span class="loading-icon" aria-hidden="true">⌁</span>
+    <div class="loading-copy">
+      <h2>Mapping ${escapeHtml(target)}</h2>
+      <p>Bounded checks in progress · TLS · headers · endpoints</p>
+      <div class="loading-bar" aria-hidden="true"><i></i></div>
+    </div>`;
   reportPanel.hidden = true;
 
   try {
     const data = await api("/api/scans", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target: targetInput.value.trim(), authorized: authorizedInput.checked }),
+      body: JSON.stringify({ target, authorized: authorizedInput.checked }),
     });
     if (!data.report) throw new Error("The scan returned no report.");
     renderReport(data.report);
     await loadHistory();
+    reportPanel.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
     setError(error instanceof Error ? error.message : "The scan could not be completed.");
     statePanel.hidden = true;
   } finally {
-    statePanel.classList.remove("loading-state");
     setLoading(false);
   }
 }
@@ -58,17 +65,19 @@ async function loadHistory() {
 
 function renderHistory(scans) {
   if (!scans.length) {
-    historyPanel.innerHTML = `<div class="history-empty"><span aria-hidden="true">◷</span><p>Scans started in this browser will appear here.</p></div>`;
+    historyPanel.innerHTML = `<div class="history-empty"><span aria-hidden="true">◷</span><p>Your scan history will appear here.</p></div>`;
     return;
   }
+
   historyPanel.innerHTML = scans.map((item) => `
     <button class="history-item" type="button" data-report-id="${escapeHtml(item.id)}">
       <span><strong>${escapeHtml(item.hostname)}</strong><small>${escapeHtml(formatDate(item.scannedAt))}</small></span>
-      <span class="history-score">${Number(item.score)}/100</span>
+      <span class="history-score">${Number(item.score)}<small>/100</small></span>
       <span class="grade ${gradeClass(item.grade)}">Grade ${escapeHtml(item.grade)}</span>
       <span class="history-arrow" aria-hidden="true">›</span>
     </button>
   `).join("");
+
   historyPanel.querySelectorAll("[data-report-id]").forEach((button) => {
     button.addEventListener("click", () => void openReport(button.dataset.reportId));
   });
@@ -87,56 +96,88 @@ async function openReport(id) {
 }
 
 function renderReport(report) {
-  const actionCount = report.findings.filter((finding) => finding.status === "fail" || finding.status === "warn").length;
-  const scoreColor = report.score >= 80 ? "#5ee9ae" : report.score >= 60 ? "#f7c85b" : "#fb7185";
+  const findings = Array.isArray(report.findings) ? report.findings : [];
+  const endpoints = Array.isArray(report.endpoints) ? report.endpoints : [];
+  const actionCount = findings.filter((finding) => finding.status === "fail" || finding.status === "warn").length;
+  const passedCount = findings.filter((finding) => finding.status === "pass").length;
+  const score = Math.max(0, Math.min(100, Number(report.score) || 0));
+  const scoreTone = score >= 80 ? "score-good" : score >= 60 ? "score-warn" : "score-bad";
+
   reportPanel.innerHTML = `
     <div class="report-summary">
-      <div class="score-ring" style="--score:${Number(report.score)};--score-color:${scoreColor}">
-        <span><strong>${Number(report.score)}</strong><small>out of 100</small></span>
+      <div class="score-ring ${scoreTone}">
+        <svg class="score-meter" viewBox="0 0 44 44" aria-hidden="true">
+          <circle class="track" cx="22" cy="22" r="18" pathLength="100"></circle>
+          <circle class="progress" cx="22" cy="22" r="18" pathLength="100" stroke-dasharray="${score} 100"></circle>
+        </svg>
+        <span class="score-copy"><strong>${score}</strong><small>out of 100</small></span>
       </div>
       <div class="report-copy">
+        <p class="report-kicker">SECURITY SNAPSHOT</p>
         <div class="report-title-row"><h2>${escapeHtml(report.hostname)}</h2><span class="grade ${gradeClass(report.grade)}">Grade ${escapeHtml(report.grade)}</span></div>
         <p>${escapeHtml(report.summary)}</p>
         <p class="report-meta">Scanned ${escapeHtml(formatDate(report.scannedAt))} · policy v${Number(report.policyVersion)}</p>
       </div>
-      <div class="action-count"><small>Action queue</small><strong>${actionCount}</strong><span>items to review</span></div>
+      <div class="report-stats">
+        <div class="report-stat review"><small>To review</small><strong>${actionCount}</strong></div>
+        <div class="report-stat passed"><small>Passed</small><strong>${passedCount}</strong></div>
+      </div>
+    </div>
+    <div class="report-tabs" role="tablist" aria-label="Report sections">
+      <button id="findings-tab" type="button" role="tab" aria-selected="true" aria-controls="findings-panel" data-tab="findings-panel">Findings</button>
+      <button id="endpoints-tab" type="button" role="tab" aria-selected="false" aria-controls="endpoints-panel" data-tab="endpoints-panel">Web endpoints</button>
+      <button id="scope-tab" type="button" role="tab" aria-selected="false" aria-controls="scope-panel" data-tab="scope-panel">Scan scope</button>
     </div>
     <div class="report-body">
-      <section class="report-section">
-        <h3>Findings</h3>
-        <div class="findings">${report.findings.map(renderFinding).join("")}</div>
+      <section id="findings-panel" class="tab-panel" role="tabpanel" aria-labelledby="findings-tab">
+        <div class="findings">${findings.map(renderFinding).join("")}</div>
       </section>
-      <aside class="report-section">
-        <h3>Web endpoints</h3>
-        <div class="endpoints">${report.endpoints.map(renderEndpoint).join("")}</div>
-        <div class="scope-note"><strong>Safe, bounded assessment.</strong> ${escapeHtml(report.disclaimer)} Private and reserved networks are blocked, redirects are constrained, and each browser and target is rate-limited.</div>
-      </aside>
-    </div>
-  `;
+      <section id="endpoints-panel" class="tab-panel" role="tabpanel" aria-labelledby="endpoints-tab" hidden>
+        <div class="endpoints">${endpoints.map(renderEndpoint).join("")}</div>
+      </section>
+      <section id="scope-panel" class="tab-panel" role="tabpanel" aria-labelledby="scope-tab" hidden>
+        <div class="scope-note"><strong>Safe, bounded assessment</strong>${escapeHtml(report.disclaimer)} Private and reserved networks are blocked, redirects are constrained, and each anonymous browser and target is rate-limited.</div>
+      </section>
+    </div>`;
+
+  reportPanel.querySelectorAll("[data-tab]").forEach((button) => {
+    button.addEventListener("click", () => selectReportTab(button));
+  });
   statePanel.hidden = true;
   reportPanel.hidden = false;
 }
 
+function selectReportTab(selectedButton) {
+  reportPanel.querySelectorAll("[data-tab]").forEach((button) => {
+    button.setAttribute("aria-selected", String(button === selectedButton));
+  });
+  reportPanel.querySelectorAll(".tab-panel").forEach((panel) => {
+    panel.hidden = panel.id !== selectedButton.dataset.tab;
+  });
+}
+
 function renderFinding(finding) {
-  const icon = finding.status === "pass" ? "✓" : finding.status === "info" ? "i" : "!";
-  const recommendation = finding.status === "pass" ? "" : `<p class="recommendation">${escapeHtml(finding.recommendation)}</p>`;
+  const status = ["pass", "info", "warn", "fail"].includes(finding.status) ? finding.status : "info";
+  const severity = ["high", "medium", "low", "info"].includes(finding.severity) ? finding.severity : "info";
+  const icon = status === "pass" ? "✓" : status === "info" ? "i" : "!";
+  const label = status === "pass" ? "Pass" : status === "info" ? "Info" : severity;
+  const recommendation = status === "pass" ? "" : `<p class="recommendation">${escapeHtml(finding.recommendation)}</p>`;
+
   return `
-    <article class="finding ${escapeHtml(finding.status)} ${escapeHtml(finding.severity)}">
+    <article class="finding ${status} ${severity}">
       <span class="finding-icon" aria-hidden="true">${icon}</span>
       <div><h4>${escapeHtml(finding.title)}</h4><span class="finding-category">${escapeHtml(finding.category)}</span><p>${escapeHtml(finding.evidence)}</p>${recommendation}</div>
-      <span class="finding-status">${finding.status === "pass" ? "Pass" : finding.status === "info" ? "Info" : escapeHtml(finding.severity)}</span>
-    </article>
-  `;
+      <span class="finding-status">${escapeHtml(label)}</span>
+    </article>`;
 }
 
 function renderEndpoint(endpoint) {
   const status = endpoint.reachable ? `HTTP ${Number(endpoint.status)}` : "No response";
   return `
     <article class="endpoint">
-      <header><strong>${escapeHtml(endpoint.scheme.toUpperCase())} :${Number(endpoint.port)}</strong><span class="endpoint-status ${endpoint.reachable ? "up" : ""}">${status}</span></header>
+      <header><strong>${escapeHtml(String(endpoint.scheme).toUpperCase())} :${Number(endpoint.port)}</strong><span class="endpoint-status ${endpoint.reachable ? "up" : ""}">${status}</span></header>
       <p>${escapeHtml(endpoint.note)}</p>
-    </article>
-  `;
+    </article>`;
 }
 
 async function api(path, options = {}) {
@@ -150,7 +191,7 @@ async function api(path, options = {}) {
 
 function setLoading(loading) {
   scanButton.classList.toggle("loading", loading);
-  scanButton.querySelector("span:last-child").textContent = loading ? "Scanning" : "Run scan";
+  scanButton.querySelector("span:nth-child(2)").textContent = loading ? "Scanning" : "Run scan";
   scanButton.disabled = loading || !targetInput.value.trim() || !authorizedInput.checked;
 }
 
@@ -181,5 +222,5 @@ function formatDate(value) {
 }
 
 function escapeHtml(value) {
-  return String(value).replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
+  return String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
 }

@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#07110f" />
+    <meta name="theme-color" content="#070b14" />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; connect-src https://cloudscope-scanner.zentex1337.chatgpt.site; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
     />
-    <meta name="description" content="A safe, public domain security posture scanner for HTTPS, browser headers, information leakage, and common web endpoints." />
+    <meta name="description" content="Get a fast, actionable security posture report for any authorized public domain—no account required." />
     <meta property="og:title" content="CloudScope Security Scanner" />
-    <meta property="og:description" content="Check a public domain's observable web security posture—no account required." />
+    <meta property="og:description" content="See your exposure. Fix it faster." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://madhav1337.github.io/cloudscope-security-scanner/" />
     <title>CloudScope Security Scanner</title>
@@ -18,79 +18,109 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <div class="ambient-light" aria-hidden="true"></div>
     <div class="grid-overlay" aria-hidden="true"></div>
+
     <div class="shell">
       <header class="site-header">
-        <a class="brand" href="./" aria-label="CloudScope home">
-          <span class="brand-mark" aria-hidden="true"><span></span></span>
-          <span>
-            <strong>CLOUDSCOPE</strong>
-            <small>Security posture scanner</small>
-          </span>
-        </a>
-        <nav class="header-actions" aria-label="Project links">
-          <span class="online"><i></i> public · no sign-in</span>
-          <a class="source-link" href="https://github.com/madhav1337/cloudscope-security-scanner" target="_blank" rel="noreferrer">View source <span aria-hidden="true">↗</span></a>
-        </nav>
+        <div class="header-bar">
+          <a class="brand" href="./" aria-label="CloudScope home">
+            <span class="brand-mark" aria-hidden="true"><span></span></span>
+            <span class="brand-copy"><strong>CLOUDSCOPE</strong><small>Security intelligence</small></span>
+            <span class="year-chip">2026</span>
+          </a>
+          <nav class="header-actions" aria-label="Project links">
+            <span class="online"><i></i> scanner online</span>
+            <a class="source-link" href="https://github.com/madhav1337/cloudscope-security-scanner" target="_blank" rel="noreferrer">
+              <span class="code-icon" aria-hidden="true">&lt;/&gt;</span><span class="source-copy">View source</span><span aria-hidden="true">↗</span>
+            </a>
+          </nav>
+        </div>
       </header>
 
       <main>
-        <section class="intro">
-          <div>
-            <p class="eyebrow">PUBLIC ANONYMOUS WORKSPACE</p>
-            <h1>Public attack-surface snapshot</h1>
-            <p>Run a bounded passive check, review observable evidence, and revisit reports from this browser—no account required.</p>
+        <section class="hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow"><span aria-hidden="true">✦</span> Security posture intelligence</p>
+            <h1>See your <span>exposure.</span></h1>
+            <p class="hero-description">Turn a public domain into a clear security snapshot—TLS, headers, leakage, and endpoint signals translated into fixes you can actually ship.</p>
+            <div class="signal-pills" aria-label="Scanner highlights">
+              <span>✓ Passive checks</span><span>⌁ No credentials</span><span>◉ Live scoring</span>
+            </div>
           </div>
-          <aside class="privacy-note">
-            <span class="privacy-icon" aria-hidden="true">◇</span>
-            <span><strong>No sign-in</strong><small>anonymous browser history</small></span>
-          </aside>
+
+          <section class="scanner-panel" aria-labelledby="scan-title">
+            <div class="panel-grid" aria-hidden="true"></div>
+            <div class="scope-radar" aria-hidden="true"><i></i><i></i><i></i></div>
+            <div class="scanner-content">
+              <header class="scanner-status">
+                <span class="status-icon" aria-hidden="true">⌁</span>
+                <span><strong>Live scanner</strong><small>ENGINE READY</small></span>
+                <code>CS-NODE 01</code>
+              </header>
+              <div class="scanner-intro">
+                <p>NEW ASSESSMENT</p>
+                <h2 id="scan-title">Scan a public domain</h2>
+                <span>One domain, one bounded scan. No paths, private IPs, credentials, or custom ports.</span>
+              </div>
+              <form id="scan-form">
+                <label class="field-label" for="target">Domain</label>
+                <div class="scan-row">
+                  <label class="target-field">
+                    <span class="globe-icon" aria-hidden="true">◎</span>
+                    <input id="target" name="target" type="text" inputmode="url" autocomplete="url" spellcheck="false" placeholder="yourdomain.com" required />
+                  </label>
+                  <button id="scan-button" type="submit" disabled><span class="button-icon" aria-hidden="true">⌁</span><span>Run scan</span><span aria-hidden="true">→</span></button>
+                </div>
+                <label class="authorization">
+                  <input id="authorized" name="authorized" type="checkbox" />
+                  <span>I own this domain or have explicit authorization to assess its public security configuration.</span>
+                </label>
+                <p id="error" class="error" role="alert" hidden></p>
+              </form>
+              <div class="scan-meta" aria-label="Safety controls"><span>◇ no account</span><span>ϟ rate limited</span><span>✓ private networks blocked</span></div>
+            </div>
+          </section>
         </section>
 
-        <section class="scanner-panel" aria-labelledby="scan-title">
-          <div class="panel-heading">
-            <span class="radar-icon" aria-hidden="true"><i></i></span>
-            <span><h2 id="scan-title">Start a security scan</h2><p>Enter one public domain. No paths, credentials, private IPs, or custom ports.</p></span>
-          </div>
-          <form id="scan-form">
-            <div class="scan-row">
-              <label class="target-field">
-                <span class="sr-only">Domain to scan</span>
-                <span aria-hidden="true">◎</span>
-                <input id="target" name="target" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="example.com" required />
-              </label>
-              <button id="scan-button" type="submit" disabled><span class="button-icon" aria-hidden="true">⌁</span><span>Run scan</span></button>
-            </div>
-            <label class="authorization">
-              <input id="authorized" name="authorized" type="checkbox" />
-              <span>I own this domain or have explicit authorization to assess its public security configuration.</span>
-            </label>
-            <p id="error" class="error" role="alert" hidden></p>
-          </form>
+        <section class="capability-grid" aria-label="Scanner capabilities">
+          <article class="metric-card cyan"><span class="metric-icon">◇</span><div><small>ACCESS</small><h2>Zero sign-in</h2><p>Open the app and scan—anonymous by default.</p></div></article>
+          <article class="metric-card violet"><span class="metric-icon">⌁</span><div><small>COVERAGE</small><h2>TLS + web signals</h2><p>Headers, leakage, and common endpoints in one pass.</p></div></article>
+          <article class="metric-card green"><span class="metric-icon">✓</span><div><small>OUTPUT</small><h2>Action-ready</h2><p>Evidence and prioritized remediation, not vague alerts.</p></div></article>
         </section>
 
         <section id="scan-state" class="empty-state" aria-live="polite">
-          <span class="empty-shield" aria-hidden="true">◇</span>
-          <h2>Ready for your first target</h2>
-          <p>Your report will show scored controls, response evidence, remediation guidance, and HTTP-compatible endpoint visibility.</p>
+          <div class="empty-copy">
+            <span class="empty-icon" aria-hidden="true">◇</span>
+            <p>REPORT WORKSPACE</p>
+            <h2>Ready when your domain is.</h2>
+            <span>Run a scan to unlock a scored report with raw evidence, prioritized findings, and practical remediation.</span>
+          </div>
+          <div class="preview-grid" aria-hidden="true">
+            <span><i>01</i><b></b><strong>TLS posture</strong></span>
+            <span><i>02</i><b></b><strong>Security headers</strong></span>
+            <span><i>03</i><b></b><strong>Info leakage</strong></span>
+            <span><i>04</i><b></b><strong>Web endpoints</strong></span>
+          </div>
         </section>
 
         <section id="report" class="report" aria-live="polite" hidden></section>
 
         <section class="history-panel" aria-labelledby="history-title">
           <header>
-            <h2 id="history-title"><span aria-hidden="true">↺</span> Recent scans</h2>
-            <span>THIS BROWSER · LAST 12</span>
+            <span class="history-icon" aria-hidden="true">↺</span>
+            <span><h2 id="history-title">Recent scans</h2><p>Reopen reports from this device</p></span>
+            <code>BROWSER LOCAL · LAST 12</code>
           </header>
           <div id="history" class="history-list">
-            <div class="history-empty"><span aria-hidden="true">◷</span><p>Scans started in this browser will appear here.</p></div>
+            <div class="history-empty"><span aria-hidden="true">◷</span><p>Your scan history will appear here.</p></div>
           </div>
         </section>
       </main>
 
       <footer>
-        <p>Bounded HTTP checks only. Private and reserved networks are blocked.</p>
-        <a href="https://github.com/madhav1337/cloudscope-security-scanner#responsible-use" target="_blank" rel="noreferrer">Responsible use</a>
+        <p>CloudScope performs bounded, passive checks on public web configuration.</p>
+        <span>OPEN SOURCE · ANONYMOUS · BUILT FOR THE WEB</span>
       </footer>
     </div>
     <script src="app.js" defer></script>
