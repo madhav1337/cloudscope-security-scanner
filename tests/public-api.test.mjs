@@ -12,12 +12,27 @@ test("accepts the GitHub Pages and public Site origins", () => {
   }
 });
 
+test("accepts a verified same-origin request when the browser omits Origin", () => {
+  const origin = "https://cloudscope-scanner.zentex1337.chatgpt.site";
+  const request = new Request(`${origin}/api/scans`, {
+    headers: { "Sec-Fetch-Site": "same-origin" },
+  });
+  assert.equal(requirePublicOrigin(request), origin);
+});
+
 test("rejects untrusted and missing browser origins", () => {
   for (const origin of ["https://attacker.example", null]) {
     const headers = origin ? { Origin: origin } : {};
     const request = new Request("https://api.example.test/api/scans", { headers });
     assert.throws(() => requirePublicOrigin(request));
   }
+});
+
+test("rejects a forged same-origin hint on an untrusted request URL", () => {
+  const request = new Request("https://attacker.example/api/scans", {
+    headers: { "Sec-Fetch-Site": "same-origin" },
+  });
+  assert.throws(() => requirePublicOrigin(request));
 });
 
 test("derives a stable anonymous owner key without storing the browser id", async () => {
