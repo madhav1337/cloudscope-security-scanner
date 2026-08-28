@@ -3,7 +3,7 @@
 [![Live demo](https://img.shields.io/badge/live_demo-GitHub_Pages-5ee9ae?style=for-the-badge&logo=github)](https://madhav1337.github.io/cloudscope-security-scanner/)
 [![CI](https://github.com/madhav1337/cloudscope-security-scanner/actions/workflows/ci.yml/badge.svg)](https://github.com/madhav1337/cloudscope-security-scanner/actions/workflows/ci.yml)
 
-**Public app:** [madhav1337.github.io/cloudscope-security-scanner](https://madhav1337.github.io/cloudscope-security-scanner/) — no ChatGPT account or sign-in required.
+**Public app:** [madhav1337.github.io/cloudscope-security-scanner](https://madhav1337.github.io/cloudscope-security-scanner/) — no sign-in required.
 
 CloudScope is a safe, portfolio-ready web security posture scanner. It checks a public domain's HTTPS enforcement, browser security headers, information-disclosure headers, and HTTP-compatible responses on four common web endpoints. Reports are scored, stored for an anonymous browser session, and paired with concrete remediation guidance.
 
