@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CloudScope Security Scanner",
-  description: "Scan a public domain's HTTPS posture, security headers, information leakage, and common web endpoints.",
+  description: "Get a fast, actionable security posture report for any authorized public domain—no account required.",
   icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
 };
 
