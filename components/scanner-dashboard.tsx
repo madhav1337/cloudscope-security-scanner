@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -24,9 +24,9 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Finding, ScanHistoryItem, ScanReport } from "@/lib/scanner/types";
 
-type Props = { user: { displayName: string; email: string } };
+const CLIENT_STORAGE_KEY = "cloudscope-anonymous-client";
 
-export function ScannerDashboard({ user }: Props) {
+export function ScannerDashboard() {
   const [target, setTarget] = useState("");
   const [authorized, setAuthorized] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -34,24 +34,31 @@ export function ScannerDashboard({ user }: Props) {
   const [report, setReport] = useState<ScanReport | null>(null);
   const [history, setHistory] = useState<ScanHistoryItem[]>([]);
 
-  const loadHistory = useCallback(async () => {
-    try {
-      const response = await fetch("/api/scans", { cache: "no-store" });
-      const data = await response.json() as { scans?: ScanHistoryItem[] };
-      if (response.ok) setHistory(data.scans ?? []);
-    } catch {
-      // History is secondary to the scanner and can recover on the next run.
-    }
-  }, []);
-
   useEffect(() => {
+    const anonymousId = getOrCreateClientId();
     let active = true;
-    void fetch("/api/scans", { cache: "no-store" })
+    void fetch("/api/scans", {
+      cache: "no-store",
+      headers: { "X-CloudScope-Client": anonymousId },
+    })
       .then((response) => response.json() as Promise<{ scans?: ScanHistoryItem[] }>)
       .then((data) => { if (active) setHistory(data.scans ?? []); })
       .catch(() => undefined);
     return () => { active = false; };
   }, []);
+
+  async function loadHistory(anonymousId = getOrCreateClientId()) {
+    try {
+      const response = await fetch("/api/scans", {
+        cache: "no-store",
+        headers: { "X-CloudScope-Client": anonymousId },
+      });
+      const data = await response.json() as { scans?: ScanHistoryItem[] };
+      if (response.ok) setHistory(data.scans ?? []);
+    } catch {
+      // History is secondary to the scanner and can recover on the next run.
+    }
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -60,7 +67,10 @@ export function ScannerDashboard({ user }: Props) {
     try {
       const response = await fetch("/api/scans", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-CloudScope-Client": getOrCreateClientId(),
+        },
         body: JSON.stringify({ target, authorized }),
       });
       const data = await response.json() as { report?: ScanReport; error?: string };
@@ -77,7 +87,9 @@ export function ScannerDashboard({ user }: Props) {
   async function openReport(id: string) {
     setError("");
     try {
-      const response = await fetch(`/api/scans/${encodeURIComponent(id)}`);
+      const response = await fetch(`/api/scans/${encodeURIComponent(id)}`, {
+        headers: { "X-CloudScope-Client": getOrCreateClientId() },
+      });
       const data = await response.json() as { report?: ScanReport; error?: string };
       if (!response.ok || !data.report) throw new Error(data.error ?? "Report unavailable.");
       setReport(data.report);
@@ -91,15 +103,15 @@ export function ScannerDashboard({ user }: Props) {
     <div className="pb-10 pt-9">
       <section className="mb-8 grid gap-6 xl:grid-cols-[1fr_auto] xl:items-end">
         <div>
-          <p className="font-mono text-xs uppercase tracking-[0.15em] text-[#5ee9ae]">Authenticated workspace</p>
+          <p className="font-mono text-xs uppercase tracking-[0.15em] text-[#5ee9ae]">Public anonymous workspace</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-0.035em] text-white sm:text-4xl">Public attack-surface snapshot</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-[#78978b]">Run a bounded passive check, review evidence, and track posture changes over time.</p>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-[#78978b]">Run a bounded passive check, review evidence, and revisit reports from this browser—no account required.</p>
         </div>
         <div className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.025] px-4 py-3">
-          <div className="grid size-9 place-items-center rounded-full bg-[#5ee9ae]/10 font-mono text-xs font-semibold text-[#5ee9ae]">{initials(user.displayName)}</div>
+          <div className="grid size-9 place-items-center rounded-full bg-[#5ee9ae]/10 text-[#5ee9ae]"><LockKeyhole className="size-4" /></div>
           <div>
-            <p className="max-w-[220px] truncate text-sm font-medium text-white">{user.displayName}</p>
-            <p className="max-w-[220px] truncate font-mono text-[10px] text-[#668177]">{user.email}</p>
+            <p className="text-sm font-medium text-white">No sign-in</p>
+            <p className="font-mono text-[10px] text-[#668177]">anonymous browser history</p>
           </div>
         </div>
       </section>
@@ -133,7 +145,7 @@ export function ScannerDashboard({ user }: Props) {
       <section className="mt-8 rounded-2xl border border-white/[0.08] bg-[#0b1915]/80">
         <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-4 sm:px-6">
           <div className="flex items-center gap-3"><History className="size-4 text-[#5ee9ae]" /><h2 className="font-medium text-white">Recent scans</h2></div>
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#668177]">last 12</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#668177]">this browser · last 12</span>
         </div>
         {history.length ? (
           <div className="divide-y divide-white/[0.06]">
@@ -147,7 +159,7 @@ export function ScannerDashboard({ user }: Props) {
             ))}
           </div>
         ) : (
-          <div className="px-6 py-10 text-center"><Clock3 className="mx-auto size-5 text-[#456056]" /><p className="mt-3 text-sm text-[#668177]">Your completed scans will appear here.</p></div>
+          <div className="px-6 py-10 text-center"><Clock3 className="mx-auto size-5 text-[#456056]" /><p className="mt-3 text-sm text-[#668177]">Scans started in this browser will appear here.</p></div>
         )}
       </section>
     </div>
@@ -186,7 +198,7 @@ function ReportView({ report }: { report: ScanReport }) {
           </div>
         </TabsContent>
         <TabsContent value="scope">
-          <div className="rounded-xl border border-[#63a8ff]/15 bg-[#63a8ff]/[0.05] p-5"><div className="flex gap-3"><LockKeyhole className="mt-0.5 size-4 shrink-0 text-[#79b7ff]" /><div><h3 className="text-sm font-medium text-white">Safe, bounded assessment</h3><p className="mt-2 text-sm leading-6 text-[#8eaaa0]">{report.disclaimer} Private and reserved networks are blocked, redirects are constrained, and each account is rate-limited.</p></div></div></div>
+          <div className="rounded-xl border border-[#63a8ff]/15 bg-[#63a8ff]/[0.05] p-5"><div className="flex gap-3"><LockKeyhole className="mt-0.5 size-4 shrink-0 text-[#79b7ff]" /><div><h3 className="text-sm font-medium text-white">Safe, bounded assessment</h3><p className="mt-2 text-sm leading-6 text-[#8eaaa0]">{report.disclaimer} Private and reserved networks are blocked, redirects are constrained, and each anonymous browser and target is rate-limited.</p></div></div></div>
         </TabsContent>
       </Tabs>
     </section>
@@ -224,10 +236,14 @@ function GradeBadge({ grade }: { grade: string }) {
   return <Badge className={`${tone} justify-center font-mono`}>Grade {grade}</Badge>;
 }
 
-function initials(value: string) {
-  return value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "U";
-}
-
 function formatDate(value: string) {
   try { return new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)); } catch { return value; }
+}
+
+function getOrCreateClientId() {
+  const existing = window.localStorage.getItem(CLIENT_STORAGE_KEY);
+  if (existing) return existing;
+  const created = crypto.randomUUID();
+  window.localStorage.setItem(CLIENT_STORAGE_KEY, created);
+  return created;
 }

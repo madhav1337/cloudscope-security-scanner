@@ -1,55 +1,91 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "@/app/chatgpt-auth";
 import { scanDomain } from "@/lib/scanner/scan";
+import { normalizeTarget } from "@/lib/scanner/target.mjs";
+import {
+  anonymousOwnerKey,
+  corsHeaders,
+  PublicApiError,
+  requirePublicOrigin,
+  withCors,
+} from "@/lib/scanner/public-api.mjs";
 import type { ScanHistoryItem } from "@/lib/scanner/types";
 
-const MAX_SCANS_PER_HOUR = 10;
+const MAX_CLIENT_SCANS_PER_HOUR = 10;
+const MAX_TARGET_SCANS_PER_HOUR = 5;
+const MAX_GLOBAL_SCANS_PER_HOUR = 200;
 
-export async function GET() {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "Sign in to view scan history." }, { status: 401 });
+export async function OPTIONS(request: Request) {
   try {
+    const origin = requirePublicOrigin(request);
+    return new Response(null, { status: 204, headers: corsHeaders(origin) });
+  } catch (error) {
+    return apiError(error);
+  }
+}
+
+export async function GET(request: Request) {
+  let origin: string | null = null;
+  try {
+    origin = requirePublicOrigin(request);
+    const ownerKey = await anonymousOwnerKey(request);
     const result = await env.DB.prepare(
       `SELECT id, target, hostname, score, grade, created_at AS scannedAt
        FROM scans
        WHERE user_email = ?
        ORDER BY created_at DESC
        LIMIT 12`,
-    ).bind(user.email).all<ScanHistoryItem>();
-    return Response.json({ scans: result.results });
+    ).bind(ownerKey).all<ScanHistoryItem>();
+    return withCors(Response.json({ scans: result.results }), origin);
   } catch (error) {
-    return databaseError(error);
+    return apiError(error, origin);
   }
 }
 
 export async function POST(request: Request) {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "Sign in before starting a scan." }, { status: 401 });
+  let origin: string | null = null;
   try {
+    origin = requirePublicOrigin(request);
+    const ownerKey = await anonymousOwnerKey(request);
     const payload = await request.json() as { target?: string; authorized?: boolean };
     if (payload.authorized !== true) {
-      return Response.json({ error: "Confirm that you own or are authorized to assess this domain." }, { status: 400 });
+      throw new PublicApiError("Confirm that you own or are authorized to assess this domain.", 400);
     }
+
     const target = payload.target?.trim() ?? "";
-    if (!target) return Response.json({ error: "Enter a public domain to scan." }, { status: 400 });
+    if (!target) throw new PublicApiError("Enter a public domain to scan.", 400);
+    const normalized = normalizeTarget(target);
 
     const rate = await env.DB.prepare(
-      `SELECT COUNT(*) AS count
+      `SELECT
+         SUM(CASE WHEN user_email = ? THEN 1 ELSE 0 END) AS clientCount,
+         SUM(CASE WHEN hostname = ? THEN 1 ELSE 0 END) AS targetCount,
+         COUNT(*) AS globalCount
        FROM scans
-       WHERE user_email = ? AND created_at >= datetime('now', '-1 hour')`,
-    ).bind(user.email).first<{ count: number }>();
-    if ((rate?.count ?? 0) >= MAX_SCANS_PER_HOUR) {
-      return Response.json({ error: "Hourly scan limit reached. Try again later." }, { status: 429 });
+       WHERE created_at >= datetime('now', '-1 hour')`,
+    ).bind(ownerKey, normalized.hostname).first<{
+      clientCount: number;
+      targetCount: number;
+      globalCount: number;
+    }>();
+
+    if ((rate?.clientCount ?? 0) >= MAX_CLIENT_SCANS_PER_HOUR) {
+      throw new PublicApiError("This browser has reached its hourly scan limit. Try again later.", 429);
+    }
+    if ((rate?.targetCount ?? 0) >= MAX_TARGET_SCANS_PER_HOUR) {
+      throw new PublicApiError("This domain has reached its hourly scan limit. Try again later.", 429);
+    }
+    if ((rate?.globalCount ?? 0) >= MAX_GLOBAL_SCANS_PER_HOUR) {
+      throw new PublicApiError("CloudScope is at its current hourly capacity. Try again later.", 429);
     }
 
-    const report = await scanDomain(target);
+    const report = await scanDomain(normalized.hostname);
     await env.DB.prepare(
       `INSERT INTO scans
        (id, user_email, target, hostname, score, grade, status, policy_version, report_json, created_at)
        VALUES (?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?)`,
     ).bind(
       report.id,
-      user.email,
+      ownerKey,
       report.target,
       report.hostname,
       report.score,
@@ -58,19 +94,19 @@ export async function POST(request: Request) {
       JSON.stringify(report),
       report.scannedAt,
     ).run();
-    return Response.json({ report }, { status: 201 });
+    return withCors(Response.json({ report }, { status: 201 }), origin);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "The scan could not be completed.";
-    if (message.includes("no such table")) return databaseError(error);
-    return Response.json({ error: message }, { status: 400 });
+    return apiError(error, origin);
   }
 }
 
-function databaseError(error: unknown) {
-  const message = error instanceof Error ? error.message : "Database unavailable";
-  const unavailable = message.includes("no such table") || message.includes("DB");
-  return Response.json(
-    { error: unavailable ? "Scan history is being prepared. Please try again shortly." : "Scan history is temporarily unavailable." },
-    { status: 503 },
+function apiError(error: unknown, origin?: string | null) {
+  const message = error instanceof Error ? error.message : "The scan could not be completed.";
+  const databaseUnavailable = message.includes("no such table") || message.includes("DB");
+  const status = error instanceof PublicApiError ? error.status : databaseUnavailable ? 503 : 400;
+  const response = Response.json(
+    { error: databaseUnavailable ? "Scan history is temporarily unavailable." : message },
+    { status },
   );
+  return origin ? withCors(response, origin) : response;
 }
